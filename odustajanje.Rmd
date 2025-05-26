@@ -5,9 +5,10 @@ output:
     df_print: paged
 ---
 ```{r}
-library(dplyr)
 
-# Učitavanje CSV datoteke
+options(repos = c(CRAN = "https://cran.r-project.org"))
+
+library(dplyr)
 df <- read.csv("data.csv", sep = ";")
 
 # Prilagodba naziva varijabli
@@ -20,6 +21,7 @@ head(df)
 str(df)
 
 ```
+
 ```{r}
 # Sažetak skupa podataka:
 # Kratak sažetak svih varijabli
@@ -126,7 +128,7 @@ knitr::kable(deskriptiva_kv_t, digits = 2,
              caption = "Deskriptivna statistika kvantitativnih varijabli")
 ```
 ```{r}
-# Grafički prikaz histogrami:
+# Grafički prikaz histograma:
 library(ggplot2)
 
 for (var in kvantitativne) {
@@ -140,7 +142,7 @@ for (var in kvantitativne) {
 
 ```
 ```{r}
-# Grafički prikaz boxplotovi:
+# Grafički prikaz boxplotova:
 for (var in kvantitativne) {
   print(
     ggplot(df_sample, aes_string(y = var)) +
@@ -215,12 +217,18 @@ Vizualizacija je izvedena pomoću stupčastih dijagrama, gdje se jasno uočavaju
 ```{r}
 install.packages("corrplot")
 install.packages("GGally")
+install.packages("dplyr")
+install.packages("reshape2")
+
 library(corrplot)
 library(GGally)
+library(dplyr)
+library(reshape2)
+
 
 ```
 ### Korelacijska matrica numeričkih varijabli:
-```{r}
+```{r korelacijska-matrica, fig.width=12, fig.height=12}
 # Skraćeni nazivi (ručno prilagođeni za preglednost)
 kratki_nazivi <- c(
   "Prev.Grade", "Adm.Grade", "Age.Enroll",
@@ -229,24 +237,118 @@ kratki_nazivi <- c(
   "2nd.Cred", "2nd.Enroll", "2nd.Eval", "2nd.Approv", "2nd.NoEval"
 )
 
-# Pripremi podatke i korelacijsku matricu
+# Priprema podatkaka i korelacijske matrice
 df_kv <- df_sample[, kvantitativne]
 colnames(df_kv) <- kratki_nazivi
 
 korelacija <- cor(df_kv, use = "complete.obs")
 
-# Prikaži čitku matricu
+# Prikaz čitke matrice
 library(corrplot)
 corrplot(korelacija, method = "color", type = "lower",
          tl.col = "black", tl.srt = 45,
-         addCoef.col = "black", number.cex = 0.6, diag = FALSE)
+         addCoef.col = "black", number.cex = 0.8, diag = FALSE)
+
+
+korelacija <- cor(df_kv, use = "complete.obs")
+
+# Pretvorba korelacijske matrice u long-format tablicu
+library(reshape2)
+korelacija_long <- melt(korelacija)
+colnames(korelacija_long) <- c("Var1", "Var2", "Correlation")
+
+# Filtriraj samo različite parove (izbaci duplikate i dijagonalu)
+korelacija_long <- korelacija_long[korelacija_long$Var1 != korelacija_long$Var2, ]
+korelacija_long <- korelacija_long[!duplicated(apply(korelacija_long[,1:2], 1, paste, collapse = "_")), ]
+
+# Prikaži jake pozitivne korelacije (>= 0.7)
+korelacija_jaka_poz <- korelacija_long %>%
+  filter(Correlation >= 0.7)
+
+# Prikaži jake negativne korelacije (<= -0.3)
+korelacija_jaka_neg <- korelacija_long %>%
+  filter(Correlation <= -0.3)
+
+# Ispiši rezultate
+korelacija_jaka_poz
+korelacija_jaka_neg
 
 ```
+
+Plava boja označava pozitivnu korelaciju, dok crvena negativnu. Što je korelacija bliža nuli to je više bijela. Slijede neka od tumačenja s grafa:
+
+| Varijable                  | Korelacija | Značenje                                               |
+| -------------------------- | ---------- | ------------------------------------------------------ |
+| `1st.Approv` – `1st.Grade` | **0.71**   | Više ocjene povezane s većim brojem položenih predmeta |
+| `2nd.Approv` – `2nd.Grade` | **0.75**   | Isto u drugom semestru                                 |
+| `1st.Enroll` – `1st.Cred`  | **0.76**   | Broj upisanih i priznatih predmeta snažno povezan      |
+| `2nd.Enroll` – `2nd.Cred`  | **0.74**   | Isto u drugom semestru                                 |
+| `1st.Eval` – `1st.Enroll`  | **0.76**   | Više evaluacija što je više predmeta                   |
+| `2nd.Eval` – `2nd.Enroll`  | **0.77**   | Isto u drugom semestru                                 |
+
+1. Povezanost ocjena i prolaznosti
+
+| Varijabla 1 | Varijabla 2  | Korelacija | Tumačenje                                                                    |
+| ----------- | ------------ | ---------- | ---------------------------------------------------------------------------- |
+| `1st.Grade` | `2nd.Grade`  | **0.837**  | Studenti s dobrim ocjenama u 1. semestru imaju sličan uspjeh i u 2. semestru |
+| `1st.Grade` | `1st.Approv` | **0.710**  | Što je više predmeta položeno viši je prosjek                                 |
+| `2nd.Grade` | `1st.Approv` | **0.702**  | Raniji uspjeh povezan je s kasnijim ocjenama                               |
+| `2nd.Grade` | `2nd.Approv` | **0.777**  | Povezanost položenih predmeta i ocjene u 2. semestru                         |
+
+2. Upisanost i priznavanje kolegija
+
+| Varijabla 1  | Varijabla 2  | Korelacija | Tumačenje                                         |
+| ------------ | ------------ | ---------- | ------------------------------------------------- |
+| `1st.Enroll` | `1st.Cred`   | **0.759**  | Više prijavljenih predmeta rezultira više priznatih predmeta       |
+| `2nd.Cred`   | `1st.Cred`   | **0.943**  | Priznavanja u 1. i 2. semestru visoko povezana    |
+| `1st.Cred`   | `2nd.Cred`   | **0.943**  | Broj ocijenjenih predmeta u 1. semestru se nastavlja i u drugom semestru |
+| `2nd.Enroll` | `1st.Enroll` | **0.940**  | Broj prijavljenih predmeta stabilan kroz semestre |
+
+3. Evaluacije i prolaznosti
+
+| Varijabla 1  | Varijabla 2  | Korelacija | Tumačenje                                         |
+| ------------ | ------------ | ---------- | ------------------------------------------------- |
+| `1st.Eval`   | `2nd.Eval`   | **0.772**  | Više evaluacija u 1. semestru → više i u 2.       |
+| `2nd.Approv` | `1st.Approv` | **0.900**  | Broj položenih kolegija vrlo sličan kroz semestre |
+
+Analiza Pearsonovih koeficijenata korelacije pokazala je izuzetno jake pozitivne veze između varijabli koje opisuju akademsku izvedbu.
+Navedeno ukazuje na dosljedan obrazac ponašanja i uspjeha studenata kroz vrijeme.
+Takvi odnosi sugeriraju da se akademska uspješnost može predvidjeti i modelirati uz relativno mali broj pouzdanih indikatora, budući da postoji visoka međuovisnost među njima.
+
 ### Dijagrami raspršenja 
+
 ```{r}
+library(ggplot2)
+library(dplyr)
+
+kvantitativne <- df_sample %>% select(where(is.numeric)) %>% colnames()
+
+df_num <- df_sample[, c(kvantitativne, "Target")]
+
+df_num$Target <- as.factor(df_num$Target)
+
+for (var in kvantitativne) {
+  p <- ggplot(df_num, aes_string(x = "Target", y = var, color = "Target")) +
+    geom_jitter(width = 0.2, alpha = 0.5) +
+    geom_boxplot(alpha = 0.3, outlier.shape = NA) +
+    theme_minimal() +
+    labs(title = paste("Distribucija varijable:", var),
+         x = "Ishod studenta (Target)",
+         y = var) +
+    theme(legend.position = "none")
+
+  print(p)
+}
+
+```
+Za svaku numeričku varijablu izrađen je scatterplot u odnosu na ishod studija (Target).
+Grafički prikazi ukazuju na razlike u distribuciji vrijednosti između studenata koji su diplomirali, odustali ili još studiraju.
+
+
+```{r ggpairs-matrica, fig.width=14, fig.height=14}
 # manji podskup radi preglednosti (npr. 6 varijabli)
 colnames(df_kv) <- kratki_nazivi
-GGally::ggpairs(df_kv[, 1:6])
+GGally::ggpairs(df_kv[, 1:8])
 #GGally::ggpairs(df_kv)
 
 
@@ -263,3 +365,75 @@ vrijednosti blizu -1 označavaju jaku negativnu korelaciju,
 vrijednosti oko 0 ukazuju na slab ili nepostojeći linearni odnos.
 
 Dijagrami raspršenja dodatno ilustriraju linearnost i eventualne nelinearne obrasce među varijablama.
+
+
+## Kvalitativne 
+
+## Provjera nedostajućih vrijednosti
+```{r}
+# Ukupan broj NA po varijabli
+colSums(is.na(df_sample))
+
+# Postotak NA po varijabli
+na_pct <- colMeans(is.na(df_sample)) * 100
+na_pct[na_pct > 0]
+
+```
+
+## Provjera dupliciranih zapisa
+
+```{r}
+# Broj potpuno identičnih redaka
+sum(duplicated(df_sample))
+
+# Ispis prvih nekoliko duplikata, ako postoje
+df_sample[duplicated(df_sample), ][1:5, ]
+
+```
+
+U danom setu podataka nema nedostajućih vrijednosti niti ima dupliciranih vrijednosti.
+
+## Provjera ekstremnih vrijednosti (Outliers)
+```{r}
+# Definiranje outliera po IQR
+detect_outliers_iqr <- function(x) {
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  (x < (Q1 - 1.5 * IQR)) | (x > (Q3 + 1.5 * IQR))
+}
+
+# Primjena na sve kvantitativne varijable
+outlier_summary <- sapply(df_sample[ , kvantitativne], function(col) sum(detect_outliers_iqr(col)))
+outlier_summary[outlier_summary > 0]
+
+```
+
+Na sljedećim boxplotovima crveni krugovi označavaju identificirane ekstremne vrijednosti.
+Vizualizacija je ograničena samo na one varijable koje imaju barem jedan outlier.
+
+```{r}
+# Petlja za crtanje boxplotova za sve kvantitativne varijable
+par(mfrow = c(1, 1))  # prilagodljiv raspored
+for (var in kvantitativne) {
+  boxplot(df_sample[[var]],
+          main = var,
+          ylab = "Vrijednost",
+          col = "lightblue",
+          border = "darkblue",
+          outcol = "red")
+}
+par(mfrow = c(1, 1))
+
+```
+Identificirani su outlieri u više numeričkih varijabli (npr. Admission.grade, Age.at.enrollment, Curricular.units...). Većina ekstremnih vrijednosti predstavlja realne, ali rijetke slučajeve (npr. studenti stariji od 60 godina, studenti s ocjenom 0 ili 20).
+
+#### Postupanje:
+
+Ako je vrijednost semantički opravdana i odražava stvarni slučaj onda se zadržava u skupu.
+
+Ako je vrijednost statistički ekstremna i nelogična (npr. broj evaluacija je veći od normalnog raspona) onda se označava za dodatnu analizu i moguće uklanjanje.
+
+Ako se outlier nalazi u binarnoj varijabli, zadržava se, jer doprinosi klasifikacijskim analizama.
+
+
