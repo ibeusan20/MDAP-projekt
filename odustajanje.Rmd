@@ -34,7 +34,8 @@ skim(df)
 Skup podataka sastoji se od 3820 opservacija i 37 varijabli, uključujući osobne, akademske i socijalno-ekonomske karakteristike studenata. Varijabla Target predstavlja ciljnu varijablu koja klasificira studente kao "Dropout", "Enrolled" ili "Graduate".
 Podaci uključuju numeričke varijable (npr. Admission.grade, Age.at.enrollment, GDP) i kategorizirane cjelobrojne varijable koje predstavljaju šifre ili klasifikacije (npr. Gender, Course, Father's.qualification).
 
-# Definiranje podskupa od 1500 opservacija sa stratificiranim omjerima po varijabli Target
+
+### Definiranje podskupa od 1500 opservacija sa stratificiranim omjerima po varijabli Target
 ```{r}
 # Raspodjela klasa u originalnom skupu
 table(df$Target)
@@ -69,6 +70,196 @@ nrow(df_sample) # cca. 1500
 
 Kako bismo smanjili dimenzionalnost skupa podataka i ubrzali analizu, konstruiran je stratificirani uzorak od 1500 opservacija.
 Pri tome je zadržana izvorna raspodjela ciljne varijable Target koja sadrži tri klase: "Dropout", "Enrolled" i "Graduate".
-Tako konstruirani uzorak reprezentativan je s obzirom na ishode studenata.
+Tako konstruirani uzorak reprezentativan je s obzirom na ishode studenata te je prikazan gornjom tablicom.
+
+## Deskriptivna statistika
+
+Iako su mnoge varijable bile zapisane kao cijeli brojevi (int), temeljem opisa podataka one predstavljaju kategorizirane informacije (npr. bračni status, spol, razina obrazovanja roditelja) te su stoga konvertirane u factor tip u R-u.
+Time se omogućuje ispravna analiza, vizualizacija i interpretacija. Varijable koje mjere količine (npr. ocjene, broj upisanih predmeta) zadržane su kao kvantitativne varijable (numeric).
+
+## Kvantitativne varijable
+```{r}
+kvantitativne <- c(
+  "Previous.qualification..grade.",
+  "Admission.grade",
+  "Age.at.enrollment",
+  "Curricular.units.1st.sem..grade.",
+  "Curricular.units.2nd.sem..grade.",
+  "Unemployment.rate",
+  "Inflation.rate",
+  "GDP",
+  "Curricular.units.1st.sem..credited.",
+  "Curricular.units.1st.sem..enrolled.",
+  "Curricular.units.1st.sem..evaluations.",
+  "Curricular.units.1st.sem..approved.",
+  "Curricular.units.1st.sem..without.evaluations.",
+  "Curricular.units.2nd.sem..credited.",
+  "Curricular.units.2nd.sem..enrolled.",
+  "Curricular.units.2nd.sem..evaluations.",
+  "Curricular.units.2nd.sem..approved.",
+  "Curricular.units.2nd.sem..without.evaluations."
+)
+
+```
+```{r}
+# Desktiptivna statistika kvant. varijabli:
+df_kv <- df_sample[, kvantitativne]
+library(dplyr)
+
+deskriptiva_kv <- df_kv %>%
+  summarise_all(list(
+    Srednja = mean,
+    Medijan = median,
+    SD = sd,
+    Q1 = ~quantile(., 0.25),
+    Q3 = ~quantile(., 0.75),
+    Min = min,
+    Max = max
+  ), na.rm = TRUE)
+
+# Transponiranje za preglednost
+deskriptiva_kv_t <- t(deskriptiva_kv)
+
+# Prikaz tablice
+knitr::kable(deskriptiva_kv_t, digits = 2,
+             col.names = c("Srednja", "Medijan", "SD", "Q1", "Q3", "Min", "Max"),
+             caption = "Deskriptivna statistika kvantitativnih varijabli")
+```
+```{r}
+# Grafički prikaz histogrami:
+library(ggplot2)
+
+for (var in kvantitativne) {
+  print(
+    ggplot(df_sample, aes_string(x = var)) +
+      geom_histogram(fill = "steelblue", color = "black", bins = 30) +
+      labs(title = paste("Histogram varijable:", var), x = var, y = "Frekvencija") +
+      theme_minimal()
+  )
+}
+
+```
+```{r}
+# Grafički prikaz boxplotovi:
+for (var in kvantitativne) {
+  print(
+    ggplot(df_sample, aes_string(y = var)) +
+      geom_boxplot(fill = "darkorange", color = "black") +
+      labs(title = paste("Boxplot varijable:", var), y = var) +
+      theme_minimal()
+  )
+}
+
+```
+
+Na temelju 18 kvantitativnih varijabli iz podskupa, provedena je deskriptivna statistika i grafička analiza distribucije.
+Izračunate su mjere centralne tendencije i disperzije (srednja vrijednost, medijan, SD, kvartili), kao i ekstremne vrijednosti (min, max).
+Histogrami prikazuju oblik distribucije podataka, dok boxploti dodatno vizualiziraju raspon i moguća odstupanja (stršila).
 
 
+## Kvalitativne varijable
+```{r}
+kvalitativne <- c(
+  "Marital.status", "Application.mode", "Application.order", "Course",
+  "Daytime.evening.attendance.", "Previous.qualification", "Nacionality",
+  "Mother.s.qualification", "Father.s.qualification", "Mother.s.occupation",
+  "Father.s.occupation", "Displaced", "Educational.special.needs", "Debtor",
+  "Tuition.fees.up.to.date", "Gender", "Scholarship.holder", "International",
+  "Target"
+)
+# Pretvorba za lakšu analizu:
+# Pretvori kvalitativne varijable u factor
+df_sample[, kvalitativne] <- lapply(df_sample[, kvalitativne], as.factor)
+# Provjera: sve bi trebale sada imati ispravan tip
+str(df_sample)
+```
+
+```{r}
+# Desktiptivna statistika kval. varijabli:
+# Za svaku varijablu ispis moda i frekvencijske distribucije
+for (var in kvalitativne) {
+  cat("🔹 Varijabla:", var, "\n")
+  mod_value <- names(sort(table(df_sample[[var]]), decreasing = TRUE))[1]
+  cat("   Mod:", mod_value, "\n")
+  print(sort(table(df_sample[[var]]), decreasing = TRUE))
+  cat("\n")
+}
+
+```
+
+```{r}
+# Grafički prikaz – stupčasti dijagram za svaku kvalitativnu varijablu:
+library(ggplot2)
+
+for (var in kvalitativne) {
+  plot_data <- as.data.frame(table(df_sample[[var]]))
+  colnames(plot_data) <- c("Kategorija", "Frekvencija")
+  
+  print(
+    ggplot(plot_data, aes(x = reorder(Kategorija, -Frekvencija), y = Frekvencija)) +
+      geom_bar(stat = "identity", fill = "darkgreen") +
+      labs(title = paste("Barplot za varijablu:", var), x = var, y = "Frekvencija") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  )
+}
+
+```
+
+Kvalitativne varijable analizirane su pomoću frekvencijskih distribucija i moda / najčešće vrijednosti.
+Za svaku varijablu izračunata je učestalost pojavljivanja svih kategorija, a najfrekventnija vrijednost definirana je kao mod.
+Vizualizacija je izvedena pomoću stupčastih dijagrama, gdje se jasno uočavaju dominantne kategorije.
+
+## Odnos između numeričkih varijabli
+
+```{r}
+install.packages("corrplot")
+install.packages("GGally")
+library(corrplot)
+library(GGally)
+
+```
+### Korelacijska matrica numeričkih varijabli:
+```{r}
+# Skraćeni nazivi (ručno prilagođeni za preglednost)
+kratki_nazivi <- c(
+  "Prev.Grade", "Adm.Grade", "Age.Enroll",
+  "1st.Grade", "2nd.Grade", "Unemp.Rate", "Infl.Rate", "GDP",
+  "1st.Cred", "1st.Enroll", "1st.Eval", "1st.Approv", "1st.NoEval",
+  "2nd.Cred", "2nd.Enroll", "2nd.Eval", "2nd.Approv", "2nd.NoEval"
+)
+
+# Pripremi podatke i korelacijsku matricu
+df_kv <- df_sample[, kvantitativne]
+colnames(df_kv) <- kratki_nazivi
+
+korelacija <- cor(df_kv, use = "complete.obs")
+
+# Prikaži čitku matricu
+library(corrplot)
+corrplot(korelacija, method = "color", type = "lower",
+         tl.col = "black", tl.srt = 45,
+         addCoef.col = "black", number.cex = 0.6, diag = FALSE)
+
+```
+### Dijagrami raspršenja 
+```{r}
+# manji podskup radi preglednosti (npr. 6 varijabli)
+colnames(df_kv) <- kratki_nazivi
+GGally::ggpairs(df_kv[, 1:6])
+#GGally::ggpairs(df_kv)
+
+
+```
+Zbog duljine naziva varijabli, korišteni su skraćeni identifikatori u prikazu korelacijske matrice i dijagrama raspršenja. Time se osigurava bolja preglednost i razumljivost rezultata bez gubitka značenja.
+
+Korelacijska matrica pokazuje Pearsonove koeficijente linearne povezanosti između svih kvantitativnih varijabli.
+Koeficijenti se kreću između -1 i 1, gdje:
+
+vrijednosti blizu +1 označavaju jaku pozitivnu korelaciju,
+
+vrijednosti blizu -1 označavaju jaku negativnu korelaciju,
+
+vrijednosti oko 0 ukazuju na slab ili nepostojeći linearni odnos.
+
+Dijagrami raspršenja dodatno ilustriraju linearnost i eventualne nelinearne obrasce među varijablama.
