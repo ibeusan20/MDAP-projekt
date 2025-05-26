@@ -1,0 +1,74 @@
+---
+title: "Predikcija odustajanja učenika"
+output:
+  html_document:
+    df_print: paged
+---
+```{r}
+library(dplyr)
+
+# Učitavanje CSV datoteke
+df <- read.csv("data.csv", sep = ";")
+
+# Prilagodba naziva varijabli
+names(df) <- make.names(names(df))
+
+# Pogled prvih par redova
+head(df)
+
+# Struktura podataka
+str(df)
+
+```
+```{r}
+# Sažetak skupa podataka:
+# Kratak sažetak svih varijabli
+summary(df)
+
+# Detaljan opis po tipu (kvantitativne, kvalitativne)
+library(skimr)
+skim(df)
+
+```
+
+Skup podataka sastoji se od 3820 opservacija i 37 varijabli, uključujući osobne, akademske i socijalno-ekonomske karakteristike studenata. Varijabla Target predstavlja ciljnu varijablu koja klasificira studente kao "Dropout", "Enrolled" ili "Graduate".
+Podaci uključuju numeričke varijable (npr. Admission.grade, Age.at.enrollment, GDP) i kategorizirane cjelobrojne varijable koje predstavljaju šifre ili klasifikacije (npr. Gender, Course, Father's.qualification).
+
+# Definiranje podskupa od 1500 opservacija sa stratificiranim omjerima po varijabli Target
+```{r}
+# Raspodjela klasa u originalnom skupu
+table(df$Target)
+prop.table(table(df$Target))  # relativne frekvencije
+
+# Broj opservacija u podskupu
+N <- 1500
+
+# Stratificirano uzorkovanje
+set.seed(123)  # reproducibilnost
+
+library(dplyr)
+
+df_sample <- df %>%
+  group_by(Target) %>%
+  sample_frac(size = N / nrow(df)) %>%
+  ungroup()
+
+# Provjera rezultata
+table(df_sample$Target)
+prop.table(table(df_sample$Target))
+nrow(df_sample) # cca. 1500
+
+```
+| Klasifikacija | Originalno | Uzorak | Omjer u originalu | Omjer u uzorku |
+| ------------- | ---------- | ------ | -------------- | ------------ |
+| **Dropout**   | 1421       | 482    | 32.12%         | 32.13%       |
+| **Enrolled**  | 794        | 269    | 17.95%         | 17.93%       |
+| **Graduate**  | 2209       | 749    | 49.93%         | 49.93%       |
+| **Ukupno**    | 4424       | 1500   | 100%           | 100%         |
+
+
+Kako bismo smanjili dimenzionalnost skupa podataka i ubrzali analizu, konstruiran je stratificirani uzorak od 1500 opservacija.
+Pri tome je zadržana izvorna raspodjela ciljne varijable Target koja sadrži tri klase: "Dropout", "Enrolled" i "Graduate".
+Tako konstruirani uzorak reprezentativan je s obzirom na ishode studenata.
+
+
