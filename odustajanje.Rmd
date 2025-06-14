@@ -449,11 +449,15 @@ Ako se outlier nalazi u binarnoj varijabli, zadržava se, jer doprinosi klasifik
 num_vars <- df_sample[, kvantitativne] #već napravljeno kao df_kv ali eto da se vidi opet...
 ```
 
+Analiza: U ovom koraku izdvajamo samo kvantitativne (numeričke) varijable iz skupa podataka. To je važno jer korelacijska analiza ima smisla samo za numeričke varijable. Time osiguravamo da u daljnjim analizama ne uključujemo kvalitativne (kategorijske) podatke koji bi mogli iskriviti rezultate.
+
 # Korelacijska matrica
 ```{r}
 cor_matrix <- cor(num_vars, use = "complete.obs")
 round(cor_matrix, 2)
 ```
+
+Analiza: Korelacijska matrica prikazuje međusobne linearne odnose između svih numeričkih varijabli. Vrijednosti blizu 1 ili -1 ukazuju na snažnu pozitivnu ili negativnu korelaciju, dok vrijednosti blizu 0 ukazuju na slab ili nikakav linearni odnos. Ova analiza pomaže identificirati varijable koje su međusobno povezane, što može biti korisno za odabir prediktora u daljnjim modelima.
 
 
 # Vizualizacija korelacijske matrice
@@ -462,11 +466,15 @@ library(corrplot)
 corrplot::corrplot(cor_matrix, method = "color", tl.cex = 0.7)
 ```
 
+Analiza: Vizualizacija korelacijske matrice pomoću 'corrplot' funkcije omogućuje brzu identifikaciju snažnih i slabih korelacija između varijabli. Boje i intenzitet kvadrata olakšavaju uočavanje obrazaca i potencijalnih problema s više kolinearnošću, što je važno za kasnije modeliranje.
+
 
 # Dijagrami rasipanja za najvažnije varijable
 ```{r}
 pairs(~ Admission.grade + Age.at.enrollment + Curricular.units.1st.sem..grade. + Curricular.units.2nd.sem..grade., data = df, main = "Scatterplot matrix")
 ```
+
+Analiza: Dijagrami rasipanja (scatterplot matrix) omogućuju vizualnu procjenu odnosa između parova najvažnijih varijabli. Ovdje možemo uočiti postoji li linearna ili nelinearna veza, te identificirati eventualne outliere ili obrasce koji bi mogli utjecati na rezultate regresije.
 
 
 ### Priprema podataka za logističku regresiju
@@ -479,12 +487,19 @@ table(df$Dropout)
 
 ```
 
+Analiza: Ovdje redefiniramo ciljnu varijablu tako da imamo binarnu klasifikaciju: 1 označava studente koji su odustali, a 0 one koji su diplomirali ili su još upisani. Time pojednostavljujemo problem i omogućujemo primjenu logističke regresije. Tablica prikazuje distribuciju klasa, što je važno za procjenu uravnoteženosti skupa podataka.
+
+
 # Odabir prediktora na temelju korelacija i domene
 ```{r}
 model_data <- df %>% select(Dropout, Admission.grade, Age.at.enrollment, Gender, Curricular.units.1st.sem..grade., Curricular.units.2nd.sem..grade.)
 model_data <- na.omit(model_data)
 
 ```
+
+Analiza: Za modeliranje biramo varijable koje su prema korelacijskoj analizi i stručnoj procjeni najrelevantnije za predviđanje odustajanja. Uklanjanjem redaka s nedostajućim vrijednostima (na.omit) osiguravamo da model ne bude pristran zbog nepotpunih podataka.
+
+
 
 ### Logistička regresija
 ```{r}
@@ -493,17 +508,23 @@ model <- glm(Dropout ~ ., data = model_data, family = binomial)
 summary(model)
 ```
 
+Analiza: Logistička regresija modelira vjerojatnost odustajanja na temelju odabranih prediktora. Izlaz summary(model) daje procjene koeficijenata, njihove standardne pogreške, z-vrijednosti i p-vrijednosti. Koeficijenti pokazuju smjer i snagu utjecaja svake varijable na vjerojatnost odustajanja. P-vrijednosti nam govore koje su varijable statistički značajne.
+
 
 # Izračun omjera izgleda (odds ratio)
 ```{r}
 exp(coef(model))
 ```
 
+Analiza: Omjeri izgleda (odds ratio) interpretiraju se kao promjena u omjeru vjerojatnosti odustajanja za jedinicu promjene prediktora. Vrijednosti veće od 1 ukazuju na povećanje rizika od odustajanja, dok vrijednosti manje od 1 ukazuju na smanjenje rizika.
+
 
 # Signifikantnost modela
 ```{r}
 anova(model, test = "Chisq")
 ```
+
+Analiza: ANOVA test s Chi-kvadrat statistikama procjenjuje doprinos svakog prediktora modelu. Niske p-vrijednosti ukazuju na to da uklanjanje određene varijable značajno pogoršava model, odnosno da je ta varijabla važna za predviđanje odustajanja.
 
 
 # Predikcija i evaluacija modela
@@ -514,11 +535,15 @@ model_data$pred_class <- ifelse(model_data$pred > 0.5, 1, 0)
 table(Predicted = model_data$pred_class, Actual = model_data$Dropout)
 ```
 
+Analiza: Model generira vjerojatnosti odustajanja za svakog studenta. Klasifikacija se vrši pragom od 0.5. Tablica prikazuje koliko je model točno predvidio odustajanje i ostanak, što omogućuje procjenu točnosti i eventualnih problema s lažno pozitivnim/negativnim predviđanjima.
+
 
 # Izračun točnosti
 ```{r}
 mean(model_data$pred_class == model_data$Dropout)
 ```
+
+Analiza: Točnost modela predstavlja udio ispravno klasificiranih slučajeva. Visoka točnost ukazuje na dobru prediktivnu sposobnost modela, ali treba biti oprezan kod neuravnoteženih klasa – tada je korisno dodatno analizirati metrike poput preciznosti, odziva i F1-mjere.
 
 
 ### Interpretacija rezultata
