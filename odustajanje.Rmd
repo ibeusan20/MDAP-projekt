@@ -460,7 +460,7 @@ round(cor_matrix, 2)
 Analiza: Korelacijska matrica prikazuje međusobne linearne odnose između svih numeričkih varijabli. Vrijednosti blizu 1 ili -1 ukazuju na snažnu pozitivnu ili negativnu korelaciju, dok vrijednosti blizu 0 ukazuju na slab ili nikakav linearni odnos. Ova analiza pomaže identificirati varijable koje su međusobno povezane, što može biti korisno za odabir prediktora u daljnjim modelima.
 
 
-# Vizualizacija korelacijske matrice
+# Vizualizacija korelacijske matrice (već postoji ranije u radu)
 ```{r}
 library(corrplot)
 corrplot::corrplot(cor_matrix, method = "color", tl.cex = 0.7)
@@ -479,16 +479,19 @@ Analiza: Dijagrami rasipanja (scatterplot matrix) omogućuju vizualnu procjenu o
 
 ### Priprema podataka za logističku regresiju
 
-# Smanjujemo Target na dvije klase: Dropout vs. ostali (Graduate/Enrolled)
 ```{r}
+# Smanjujemo Target na dvije klase: Dropout vs. ostali (Graduate/Enrolled)
 df$Dropout <- ifelse(df$Target == "Dropout", 1, 0)
 
 table(df$Dropout)
+prop.table(table(df$Dropout)) * 100
+
 
 ```
 
 Analiza: Ovdje redefiniramo ciljnu varijablu tako da imamo binarnu klasifikaciju: 1 označava studente koji su odustali, a 0 one koji su diplomirali ili su još upisani. Time pojednostavljujemo problem i omogućujemo primjenu logističke regresije. Tablica prikazuje distribuciju klasa, što je važno za procjenu uravnoteženosti skupa podataka.
-
+Ova distribucija pokazuje da je skup podataka umjereno neuravnotežen, s većim brojem studenata koji nisu odustali (~ 68%).
+Unatoč neuravnoteženosti, omjer klasa je dovoljno dobar za pouzdano treniranje logističkog modela bez potrebe za dodatnim tehnikama balansiranja.
 
 # Odabir prediktora na temelju korelacija i domene
 ```{r}
@@ -498,17 +501,33 @@ model_data <- na.omit(model_data)
 ```
 
 Analiza: Za modeliranje biramo varijable koje su prema korelacijskoj analizi i stručnoj procjeni najrelevantnije za predviđanje odustajanja. Uklanjanjem redaka s nedostajućim vrijednostima (na.omit) osiguravamo da model ne bude pristran zbog nepotpunih podataka.
-
+Odabrane varijable uključuju ocjenu pri upisu (Admission.grade), dob pri upisu (Age.at.enrollment), spol (Gender) te prosječne ocjene iz prvog i drugog semestra. Ove varijable su identificirane kao relevantne kroz kombinaciju domenskog znanja i rezultata korelacijske matrice. Korištenjem ovih prediktora model ima potencijal prepoznati obrazovne i demografske obrasce koji ukazuju na povećani rizik od odustajanja.
 
 
 ### Logistička regresija
 ```{r}
-
 model <- glm(Dropout ~ ., data = model_data, family = binomial)
 summary(model)
+
+# Napravi predikciju ako još nisi
+model_data$pred <- predict(model, type = "response")
+
+# Ukloni NA ako ih ima
+model_data <- model_data[complete.cases(model_data$Dropout, model_data$pred), ]
+
+# Izračunaj ROC
+library(pROC)
+roc_obj <- roc(model_data$Dropout, model_data$pred)
+plot(roc_obj, col = "blue", main = "ROC krivulja")
+auc(roc_obj)
+
+
 ```
 
-Analiza: Logistička regresija modelira vjerojatnost odustajanja na temelju odabranih prediktora. Izlaz summary(model) daje procjene koeficijenata, njihove standardne pogreške, z-vrijednosti i p-vrijednosti. Koeficijenti pokazuju smjer i snagu utjecaja svake varijable na vjerojatnost odustajanja. P-vrijednosti nam govore koje su varijable statistički značajne.
+Analiza: Za potrebe regresijske analize, odabrana je varijabla Target kao zavisna varijabla. Budući da se radi o kvalitativnoj varijabli s tri razine (Dropout, Enrolled, Graduate), za binarnu logističku regresiju transformirana je u novu varijablu Dropout (1 = Dropout, 0 = ostali). Time se omogućava modeliranje vjerojatnosti odustajanja studenata u odnosu na sve ostale ishode.
+Logistička regresija modelira vjerojatnost odustajanja na temelju odabranih prediktora. Izlaz summary(model) daje procjene koeficijenata, njihove standardne pogreške, z-vrijednosti i p-vrijednosti. Koeficijenti pokazuju smjer i snagu utjecaja svake varijable na vjerojatnost odustajanja. P-vrijednosti nam govore koje su varijable statistički značajne.
+
+ROC krivulja prikazuje kompromis između osjetljivosti (sensitivity) i specifičnosti (specificity) klasifikacijskog modela. AUC (Area Under the Curve) predstavlja ukupnu sposobnost modela da ispravno klasificira primjere: vrijednosti blizu 1 ukazuju na izvrstan model, dok vrijednosti blizu 0.5 ukazuju na nasumično pogađanje. U našem slučaju, AUC = 0.8371, što ukazuje na vrlo dobru (>0.8) klasifikacijsku sposobnost. Takav rezultat sugerira da model može služiti kao koristan alat za prepoznavanje rizičnih studenata prije nego odustanu.
 
 
 # Izračun omjera izgleda (odds ratio)
@@ -518,13 +537,40 @@ exp(coef(model))
 
 Analiza: Omjeri izgleda (odds ratio) interpretiraju se kao promjena u omjeru vjerojatnosti odustajanja za jedinicu promjene prediktora. Vrijednosti veće od 1 ukazuju na povećanje rizika od odustajanja, dok vrijednosti manje od 1 ukazuju na smanjenje rizika.
 
+Admission.grade (omjer izgleda ~ 0.99): za svaku jedinicu veću ocjenu pri upisu, vjerojatnost odustajanja se smanjuje za otprilike 1% (jer je OR < 1). Pokazuje da su bolji kandidati manje skloni odustajanju.
+
+Age.at.enrollment (omjer izgleda ~ 1.06): stariji studenti imaju 6% veću šansu za odustajanje po svakoj godini starosti. Može ukazivati na dodatne životne obaveze (posao, obitelj).
+
+Gender (omjer izgleda ~ 1.70): ovisno o kodiranju, jedna skupina (najčešće muškarci ako je muški = 1) ima 70% veću šansu za odustajanje. Važno je jasno specificirati kodiranje varijable Gender u dokumentaciji.
+
+Curricular.units.1st.sem..grade. (omjer izgleda ~ 1.007): efekt je vrlo blizu 1 i nije statistički značajan (p-vrijednost), što sugerira da ocjene u 1. semestru ne pridonose značajno modelu kada su druge varijable prisutne.
+
+Curricular.units.2nd.sem..grade. (omjer izgleda ~ 0.78): bolji uspjeh u drugom semestru smanjuje rizik od odustajanja za 22% po jedinici ocjene. Ovo je snažan i značajan zaštitni faktor.
+
+Interpretacija omjera izgleda omogućuje kvantificiranje efekta svake varijable na ishod. U kontekstu obrazovne politike, rezultati sugeriraju da akademski uspjeh i pripremljenost pri upisu (Admission.grade, 2nd.sem.grade) igraju ključnu ulogu, dok demografski faktori (dob, spol) također nose značajnu težinu.
 
 # Signifikantnost modela
 ```{r}
 anova(model, test = "Chisq")
 ```
 
-Analiza: ANOVA test s Chi-kvadrat statistikama procjenjuje doprinos svakog prediktora modelu. Niske p-vrijednosti ukazuju na to da uklanjanje određene varijable značajno pogoršava model, odnosno da je ta varijabla važna za predviđanje odustajanja.
+Analiza:
+ANOVA tablica s Chi-kvadrat testiranjem (tipična za generalizirane linearne modele) prikazuje sekvencijalni doprinos svake varijable smanjenju devijance modela. Devijanca je mjera "pogreške" modela – niža vrijednost devijance znači bolju prilagodbu podacima.
+
+Za svaki prediktor navodi se:
+Df - broj stupnjeva slobode (1 po varijabli)
+Deviance - koliki doprinos ima ta varijabla u smanjenju ukupne devijance modela
+Pr(>Chi) - p-vrijednost za testiranje hipoteze da varijabla ne doprinosi značajno
+
+Tumačenje po varijabli:
+Admission.grade (p ~ 1.3e-10) - značajno doprinosi: što je viša ulazna ocjena, manja je šansa za odustajanje.
+Age.at.enrollment (p < 2.2e-16) - iznimno značajan prediktor: dob ima snažnu povezanost s ishodom.
+Gender (p < 2.2e-16) - spol također statistički značajno utječe na ishod.
+Curricular.units.1st.sem..grade. (p < 2.2e-16) - ovdje pokazuje jako veliki doprinos modelu.
+Curricular.units.2nd.sem..grade. (p < 2.2e-16) - jasno značajna varijabla s velikim doprinosom modelu.
+
+Zaključak:
+Sve uključene varijable daju značajan doprinos modelu u kontekstu testiranja smanjenja devijance. To potvrđuje da je odabir prediktora opravdan i da model ima snažnu statističku osnovu. Dodatno, visoke Chi-kvadrat vrijednosti i niske p-vrijednosti pokazuju da model ne uključuje beskorisne varijable i da svaka od njih značajno pridonosi razdvajanju skupina (Dropout vs. ostali).
 
 
 # Predikcija i evaluacija modela
@@ -536,28 +582,93 @@ table(Predicted = model_data$pred_class, Actual = model_data$Dropout)
 ```
 
 Analiza: Model generira vjerojatnosti odustajanja za svakog studenta. Klasifikacija se vrši pragom od 0.5. Tablica prikazuje koliko je model točno predvidio odustajanje i ostanak, što omogućuje procjenu točnosti i eventualnih problema s lažno pozitivnim/negativnim predviđanjima.
+Tumačenje:
+TN (True Negative) = 2845 studenata je ispravno klasificirano kao neodustali.
+TP (True Positive) = 740 je ispravno klasificirano kao odustali.
+FP (False Positive) = 158 je krivo označeno kao odustali iako nisu.
+FN (False Negative) = 681 je model krivo označio kao da nisu odustali, a jesu.
 
+Moguće evaluacijske metrike:
+
+Točnost (Accuracy):
+\frac{TP + TN}{TP + TN + FP + FN} = \frac{2845 + 740}{4424} ~ {81.3%}
+--> Dobra ukupna točnost, ali može biti varljiva kod neuravnoteženih klasa
+Preciznost (Precision):
+\frac{TP}{TP + FP} = \frac{740}{740 + 158} ~ {82.4%}
+--> Koliko je predikcija "odustao" zaista bila točna.
+Odziv (Recall/Sensitivity):
+\frac{TP}{TP + FN} = \frac{740}{740 + 681} ~ {52.1%}
+--> Koliki postotak od stvarnih "dropout" je model uhvatio.
+F1-mjera:
+F1 = 2 \cdot \frac{\text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}} ~ {63.7%}
+--> Uravnotežen pokazatelj između preciznosti i odziva.
+
+Model je relativno precizan u predviđanju odustajanja (visoka preciznost), ali ima umjeren odziv odnosno propustio je dio stvarno odustalih studenata. To može biti problem u praksi, jer studenti koji su stvarno u riziku možda neće biti prepoznati.
 
 # Izračun točnosti
 ```{r}
+model_data$pred <- predict(model, type = "response")
+model_data$pred_class <- ifelse(model_data$pred > 0.5, 1, 0)
 mean(model_data$pred_class == model_data$Dropout)
+
 ```
 
-Analiza: Točnost modela predstavlja udio ispravno klasificiranih slučajeva. Visoka točnost ukazuje na dobru prediktivnu sposobnost modela, ali treba biti oprezan kod neuravnoteženih klasa – tada je korisno dodatno analizirati metrike poput preciznosti, odziva i F1-mjere.
+Analiza: Točnost modela predstavlja udio ispravno klasificiranih slučajeva. (Točno klasificirano odustajanje i točno klasificirano "ostajanje" podijeljeno s ukupnim brojem promatranja) u ovom slučaju ~ 80.88%. Visoka točnost ukazuje na dobru prediktivnu sposobnost modela, ali treba biti oprezan kod neuravnoteženih klasa – tada je korisno dodatno analizirati metrike poput preciznosti, odziva i F1-mjere.
 
+Preporučljivo je uključiti i :
+Preciznost (Precision): Koliko je točnih među onima za koje je model rekao da su odustali.
+Odziv (Recall): Koliki postotak stvarno odustalih studenata je model uspio otkriti.
+F1-mjeru: Harmoničnu sredinu preciznosti i odziva, koja posebno dolazi do izražaja kada su klase neuravnotežene.
+
+
+```{r}
+# install.packages("caret")
+library(caret)
+
+confusionMatrix(factor(model_data$pred_class), factor(model_data$Dropout), positive = "1")
+
+```
+Analiza: Analiza rezultata proširene evaluacije modela binarne logističke regresije uključuje ključne klasifikacijske metrike koje nadopunjuju samu točnost i pružaju dublji uvid u učinkovitost modela, osobito u kontekstu neuravnoteženih klasa.
+
+Dobivena točnost (Accuracy) iznosi 81.04%, što znači da je model u prosjeku ispravno klasificirao više od četiri od pet slučajeva. Međutim, s obzirom da No Information Rate (NIR) iznosi 67.88% (tj. model koji bi uvijek predviđao najčešću klasu bio bi točan u gotovo 68% slučajeva), naš model značajno nadmašuje to osnovno predviđanje (p < 2.2e-16), što potvrđuje njegovu korisnost.
+
+Pogledamo li preciznost (Precision, ili Pos Pred Value), model točno predviđa odustajanje za 82.41% slučajeva kada kaže da je student odustao. To znači da je model prilično dobar u izbjegavanju lažno pozitivnih predikcija (npr. označavanje studenta kao odustalog kad to nije).
+
+S druge strane, odziv (Recall, ili Sensitivity) iznosi 52.08%, što implicira da je model prepoznao otprilike polovicu svih stvarno odustalih studenata. To je osjetljiva točka modela, jer bi u nekim kontekstima bilo poželjno postići viši odziv, čak i pod cijenu nešto niže preciznosti.
+
+F1-mjera, koja balansira preciznost i odziv, indirektno se može procijeniti iz prikazanih vrijednosti, i bila bi korisna za dodatnu kvantifikaciju ravnoteže između lažno pozitivnih i lažno negativnih slučajeva. Nadalje, visoka specifičnost (Specificity) od 94.74% pokazuje da je model vrlo uspješan u identifikaciji studenata koji nisu odustali.
+
+Na kraju, Kappa koeficijent od 0.5184 ukazuje na umjerenu dobru slaganja između predikcija modela i stvarnih vrijednosti, dok Balanced Accuracy (prosjek specifičnosti i osjetljivosti) iznosi 73.41%, što dodatno potvrđuje solidnu, iako ne savršenu, sposobnost modela da se nosi s neuravnoteženim klasama.
+
+U cjelini, model pokazuje dobru klasifikacijsku sposobnost, ali postoji prostor za poboljšanja, osobito u pogledu osjetljivosti (odaziva), što je osobito važno ako je cilj proaktivna identifikacija ugroženih studenata.
 
 ### Interpretacija rezultata
 
-# Komentar: Prikazani su koeficijenti modela, njihova signifikantnost i omjeri izgleda. Važno je interpretirati koji prediktori značajno utječu na vjerojatnost odustajanja. Također, prikazana je točnost modela i matrica klasifikacije.
-# Preporuka: Analizirati rezidualne dijagnostičke grafove (plot(model)) i razmotriti dodatne varijable ili interakcije ako je potrebno.
+Komentar: Prikazani su koeficijenti modela, njihova signifikantnost i omjeri izgleda. Važno je interpretirati koji prediktori značajno utječu na vjerojatnost odustajanja. Također, prikazana je točnost modela i matrica klasifikacije.
+
+Preporuka: Analizirati rezidualne dijagnostičke grafove (plot(model)) i razmotriti dodatne varijable ili interakcije ako je potrebno.
+
+### Rezultati binarne logističke regresije pokazuju:
+
+Admission.grade: Negativan i signifikantan koeficijent (omjer izgleda ~ 0.99) upućuje da veća ocjena pri upisu smanjuje vjerojatnost odustajanja.
+
+Age.at.enrollment: Pozitivan i signifikantan (omjer izgleda ~ 1.06) - stariji studenti češće odustaju.
+
+Gender: Pozitivan i signifikantan (omjer izgleda ~ 1.70) → muškarci imaju veću šansu za odustajanje.
+
+Curricular.units.2nd.sem..grade.: Negativan i snažno signifikantan (omjer izgleda ~ 0.78) - bolje ocjene u 2. semestru smanjuju rizik od odustajanja.
+
+Curricular.units.1st.sem..grade.: Nije značajan – moguće je da varijabla ne doprinosi dodatno uz ostale prediktore.
+
+Model ima AUC = 0.837, što prema klasifikaciji Hosmer-Lemeshow sugerira vrlo dobru diskriminacijsku sposobnost modela (0.8–0.9 = "very good"). Međutim, nešto niži recall (52%) ukazuje da bi model mogao propustiti dio stvarnih odustajanja, što može imati praktične implikacije ako je cilj prevencija.
 
 ### Zaključak
 
-# Model logističke regresije omogućuje identifikaciju ključnih faktora povezanih s odustajanjem studenata. Najznačajniji prediktori su Admission.grade, Age.at.enrollment i uspjeh u prvoj i drugoj godini. Model ima određenu prediktivnu snagu, ali je preporučljivo dodatno testirati i validirati model na novim podacima.
+Model logističke regresije omogućuje identifikaciju ključnih faktora povezanih s odustajanjem studenata. Najznačajniji prediktori su Admission.grade, Age.at.enrollment i uspjeh u prvoj i drugoj godini. Model ima određenu prediktivnu snagu, ali je preporučljivo dodatno testirati i validirati model na novim podacima.
 
 ### Literatura
-# 1. R documentation: https://www.r-project.org/
-# 2. Corrplot package: https://cran.r-project.org/web/packages/corrplot/
-# 3. Literatura iz kolegija i znanstveni članci o studentskoj odustajnosti
+1. R documentation: https://www.r-project.org/
+2. Corrplot package: https://cran.r-project.org/web/packages/corrplot/
+3. Literatura iz kolegija i znanstveni članci o studentskoj odustajnosti
 
 
