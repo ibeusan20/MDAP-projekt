@@ -436,52 +436,90 @@ Ako je vrijednost statistički ekstremna i nelogična (npr. broj evaluacija je v
 
 Ako se outlier nalazi u binarnoj varijabli, zadržava se, jer doprinosi klasifikacijskim analizama.
 
+
+#2. faza
+
+
 ### Korelacijska matrica i dijagrami rasipanja
 
 # Odabir numeričkih varijabli za korelaciju
-num_vars <- df %>% select_if(is.numeric)
+
+```{r}
+##num_vars <- df %>% select_if(is.numeric)
+num_vars <- df_sample[, kvantitativne] #već napravljeno kao df_kv ali eto da se vidi opet...
+```
 
 # Korelacijska matrica
+```{r}
 cor_matrix <- cor(num_vars, use = "complete.obs")
 round(cor_matrix, 2)
+```
+
 
 # Vizualizacija korelacijske matrice
+```{r}
 library(corrplot)
 corrplot::corrplot(cor_matrix, method = "color", tl.cex = 0.7)
+```
+
 
 # Dijagrami rasipanja za najvažnije varijable
-pairs(~ Admission.grade + Age.at.enrollment + Curricular.units.1st.sem.grade + Curricular.units.2nd.sem.grade, data = df, main = "Scatterplot matrix")
+```{r}
+pairs(~ Admission.grade + Age.at.enrollment + Curricular.units.1st.sem..grade. + Curricular.units.2nd.sem..grade., data = df, main = "Scatterplot matrix")
+```
+
 
 ### Priprema podataka za logističku regresiju
 
 # Smanjujemo Target na dvije klase: Dropout vs. ostali (Graduate/Enrolled)
+```{r}
 df$Dropout <- ifelse(df$Target == "Dropout", 1, 0)
 
 table(df$Dropout)
 
+```
+
 # Odabir prediktora na temelju korelacija i domene
-model_data <- df %>% select(Dropout, Admission.grade, Age.at.enrollment, Gender, Curricular.units.1st.sem.grade, Curricular.units.2nd.sem.grade)
+```{r}
+model_data <- df %>% select(Dropout, Admission.grade, Age.at.enrollment, Gender, Curricular.units.1st.sem..grade., Curricular.units.2nd.sem..grade.)
 model_data <- na.omit(model_data)
 
+```
+
 ### Logistička regresija
+```{r}
 
 model <- glm(Dropout ~ ., data = model_data, family = binomial)
 summary(model)
+```
+
 
 # Izračun omjera izgleda (odds ratio)
+```{r}
 exp(coef(model))
+```
+
 
 # Signifikantnost modela
+```{r}
 anova(model, test = "Chisq")
+```
+
 
 # Predikcija i evaluacija modela
+```{r}
 model_data$pred <- predict(model, type = "response")
 model_data$pred_class <- ifelse(model_data$pred > 0.5, 1, 0)
 
 table(Predicted = model_data$pred_class, Actual = model_data$Dropout)
+```
+
 
 # Izračun točnosti
+```{r}
 mean(model_data$pred_class == model_data$Dropout)
+```
+
 
 ### Interpretacija rezultata
 
