@@ -439,6 +439,71 @@ Ako se outlier nalazi u binarnoj varijabli, zadržava se, jer doprinosi klasifik
 
 #2. faza
 
+# Odabir metoda
+
+### Hi-kvadart test
+U ovom testu provjeravamo postoji li statistički značajna povezanost između varijable Target (Dropout / Enrolled / Graduate) i Gender odnosno spola. Određene su nulta hipoteza i alternativna hipoteza te su navedene u analizi hi-kvadra testa ispod.
+
+Nulta hipoteza: Varijable su nezavisne, tj. spol nije povezan s ishodom studiranja.
+
+Alternativna hipoteza: Postoji povezanost između spola i ishoda studiranja.
+
+```{r}
+chisq_table <- table(df$Target, df$Gender)
+chisq.test(chisq_table)
+```
+Dobiveni rezultat: χ² (2) = 233.27. p < 2.2e-16 čime se snažno odbacuje nulta hipoteza. 
+
+Postoji statistički značajna povezanost između spola i ishoda studiranja (Target). To znači da je spol relevantan čimbenik u kontekstu odustajanja, diplomiranja ili nastavka studija. Ovaj rezultat je u skladu s kasnijim rezultatima logističke regresije, gdje je Gender također bio značajan prediktor te je to objašnjeno kasnije kroz rad.
+
+###Provjera uvjeta za ANOVA analizu
+
+```{r}
+# Provjera normalnosti za svaku grupu Target
+by(df$`Curricular.units.2nd.sem..grade.`, df$Target, shapiro.test)
+```
+
+Sve tri grupe značajno odstupaju od normalne distribucije, jer je p < 0.05 u svakom slučaju te samim time normalnost nije zadovoljena.
+
+```{r}
+# Leveneov test
+library(car)
+leveneTest(Curricular.units.2nd.sem..grade. ~ Target, data = df)
+
+```
+Test je značajan što znači da se varijance među grupama značajno razlikuju pa homogenost nije zadovoljena.
+
+Preduvjeti za ANOVA nisu ispunjeni. Budući da su oba ključna preduvjeta pala (normalnost i homogenost varijanci), ne smije se koristiti klasična ANOVA te se treba koristiti neparametarski Kruskal-Wallis test jer omogućuje usporedbu više grupa, nema pretpostavku o normalnosti te ne zahtijeva homogenost varijanci.
+
+```{r}
+kruskal.test(Curricular.units.2nd.sem..grade. ~ Target, data = df)
+
+```
+Kruskal-Wallis test rezultati govore da je H vrijednost (Kruskal-Wallis chi-squared): 1390.7, stupnjevi slobode (df): 2, a p-vrijednost: < 2.2e-16 što vodi do zaključka da možemo odbaciti nultu hipotezu budući da je p < 0.05.
+
+Nulta hipoteza: Nema razlike u raspodjeli ocjena u 2. semestru (Curricular.units.2nd.sem..grade.) između grupa (Dropout, Enrolled, Graduate).
+Alternativna hipoteza: Postoji razlika u barem jednoj grupi.
+
+Dakle, studentske ocjene u 2. semestru se statistički značajno razlikuju ovisno o ishodu (Target).
+
+
+```{r}
+# install.packages("FSA")
+```
+
+```{r}
+library(FSA)
+dunnTest(Curricular.units.2nd.sem..grade. ~ Target, data = df, method = "bonferroni")
+```
+
+Post-hoc testom se određuju razlike između grupa te je zato proveden.
+Sve usporedbe su statistički značajne (p.adj < 0.05) što znači da studenti koji su odustali se značajno razlikuju po ocjenama u 2. semestru i od upisanih i od diplomiranih. Također postoji značajna razlika između upisanih i diplomiranih.
+Interpretacija po usporedbi:
+Dropout vs Enrolled: Odustali studenti imaju značajno niže ocjene od onih koji su još upisani.
+Dropout vs Graduate: Odustali studenti imaju daleko niže ocjene u odnosu na diplomirane – ova razlika je ekstremno značajna.
+Enrolled vs Graduate: I među onima koji su još upisani i onima koji su diplomirali postoji značajna razlika – diplomirani imaju više ocjene.
+
+Ocjene u drugom semestru snažno su povezane s ishodom studija. Ta varijabla je statistički značajna u Kruskal-Wallis testu, a sve međusobne razlike su potvrđene Dunnovim testom što daje jako dobru osnovu za uključivanje ove varijable u regresijske modele kroz ovaj rad.
 
 ### Korelacijska matrica i dijagrami rasipanja
 
@@ -460,7 +525,7 @@ round(cor_matrix, 2)
 Analiza: Korelacijska matrica prikazuje međusobne linearne odnose između svih numeričkih varijabli. Vrijednosti blizu 1 ili -1 ukazuju na snažnu pozitivnu ili negativnu korelaciju, dok vrijednosti blizu 0 ukazuju na slab ili nikakav linearni odnos. Ova analiza pomaže identificirati varijable koje su međusobno povezane, što može biti korisno za odabir prediktora u daljnjim modelima.
 
 
-# Vizualizacija korelacijske matrice (već postoji ranije u radu)
+# Vizualizacija korelacijske matrice (već postoji ranije u radu veća verzija)
 ```{r}
 library(corrplot)
 corrplot::corrplot(cor_matrix, method = "color", tl.cex = 0.7)
@@ -475,6 +540,8 @@ pairs(~ Admission.grade + Age.at.enrollment + Curricular.units.1st.sem..grade. +
 ```
 
 Analiza: Dijagrami rasipanja (scatterplot matrix) omogućuju vizualnu procjenu odnosa između parova najvažnijih varijabli. Ovdje možemo uočiti postoji li linearna ili nelinearna veza, te identificirati eventualne outliere ili obrasce koji bi mogli utjecati na rezultate regresije.
+
+
 
 
 ### Priprema podataka za logističku regresiju
@@ -509,7 +576,7 @@ Odabrane varijable uključuju ocjenu pri upisu (Admission.grade), dob pri upisu 
 model <- glm(Dropout ~ ., data = model_data, family = binomial)
 summary(model)
 
-# Napravi predikciju ako još nisi
+# Predikcija
 model_data$pred <- predict(model, type = "response")
 
 # Ukloni NA ako ih ima
