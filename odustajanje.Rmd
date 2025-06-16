@@ -505,6 +505,8 @@ Enrolled vs Graduate: I među onima koji su još upisani i onima koji su diplomi
 
 Ocjene u drugom semestru snažno su povezane s ishodom studija. Ta varijabla je statistički značajna u Kruskal-Wallis testu, a sve međusobne razlike su potvrđene Dunnovim testom što daje jako dobru osnovu za uključivanje ove varijable u regresijske modele kroz ovaj rad.
 
+Također bi onda trebalo provjeriti da nema kolinearnih prediktora u regresiji
+
 ### Korelacijska matrica i dijagrami rasipanja
 
 # Odabir numeričkih varijabli za korelaciju
@@ -604,7 +606,7 @@ exp(coef(model))
 
 Analiza: Omjeri izgleda (odds ratio) interpretiraju se kao promjena u omjeru vjerojatnosti odustajanja za jedinicu promjene prediktora. Vrijednosti veće od 1 ukazuju na povećanje rizika od odustajanja, dok vrijednosti manje od 1 ukazuju na smanjenje rizika.
 
-Admission.grade (omjer izgleda ~ 0.99): za svaku jedinicu veću ocjenu pri upisu, vjerojatnost odustajanja se smanjuje za otprilike 1% (jer je OR < 1). Pokazuje da su bolji kandidati manje skloni odustajanju.
+Admission.grade (omjer izgleda ~ 0.99): za svaku jedinicu veću ocjenu pri upisu, vjerojatnost odustajanja se smanjuje za otprilike 1% (jer je omjer izgleda < 1). Pokazuje da su bolji kandidati manje skloni odustajanju.
 
 Age.at.enrollment (omjer izgleda ~ 1.06): stariji studenti imaju 6% veću šansu za odustajanje po svakoj godini starosti. Može ukazivati na dodatne životne obaveze (posao, obitelj).
 
@@ -615,6 +617,7 @@ Curricular.units.1st.sem..grade. (omjer izgleda ~ 1.007): efekt je vrlo blizu 1 
 Curricular.units.2nd.sem..grade. (omjer izgleda ~ 0.78): bolji uspjeh u drugom semestru smanjuje rizik od odustajanja za 22% po jedinici ocjene. Ovo je snažan i značajan zaštitni faktor.
 
 Interpretacija omjera izgleda omogućuje kvantificiranje efekta svake varijable na ishod. U kontekstu obrazovne politike, rezultati sugeriraju da akademski uspjeh i pripremljenost pri upisu (Admission.grade, 2nd.sem.grade) igraju ključnu ulogu, dok demografski faktori (dob, spol) također nose značajnu težinu.
+
 
 # Signifikantnost modela
 ```{r}
